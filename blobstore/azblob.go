@@ -180,6 +180,8 @@ func (s *azblobStore) Write(dst *Blob, src io.Reader) error {
 		return err
 	}
 
+	// Azure blobs dont recalculate checksums IF they were uploaded in blocks.
+	// Calculate manually after uploading, to help for performance on subsequent uploads
 	hash := md5.New()
 	io.Copy(hash, src)
 	_, err = blobURL.SetHTTPHeaders(context.Background(), azblob.BlobHTTPHeaders{ContentMD5: hash.Sum(nil)[:16]}, azblob.BlobAccessConditions{})
