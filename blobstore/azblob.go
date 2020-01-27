@@ -16,6 +16,7 @@ package blobstore
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -26,9 +27,8 @@ import (
 	"strings"
 
 	"github.com/cheggaaa/pb"
-	"github.com/pivotal-cf/goblob/validation"
 
-	"github.com/Azure/azure-storage-blob-go/2018-03-28/azblob"
+	"github.com/Azure/azure-storage-blob-go/azblob"
 )
 
 var (
@@ -149,14 +149,14 @@ func (s *azblobStore) Read(src *Blob) (io.ReadCloser, error) {
 func (s *azblobStore) Checksum(src *Blob) (string, error) {
 	// large blob does not have Content-MD5 in Metadata,
 	// otherwise it will be faster to get checksum from metadata.
-	// return s.checksumFromMetadata(src)
-	rc, err := s.Read(src)
-	if err != nil {
-		return "", nil
-	}
-	defer rc.Close()
+	return s.checksumFromMetadata(src)
+	// rc, err := s.Read(src)
+	// if err != nil {
+	// 	return "", nil
+	// }
+	// defer rc.Close()
 
-	return validation.ChecksumReader(rc)
+	// return validation.ChecksumReader(rc)
 }
 
 func (s *azblobStore) Write(dst *Blob, src io.Reader) error {
@@ -179,6 +179,14 @@ func (s *azblobStore) Write(dst *Blob, src io.Reader) error {
 	if err != nil {
 		return err
 	}
+
+	hash := md5.New()
+	io.Copy(hash, src)
+	_, err = blobURL.SetHTTPHeaders(context.Background(), azblob.BlobHTTPHeaders{ContentMD5: hash.Sum(nil)[:16]}, azblob.BlobAccessConditions{})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
