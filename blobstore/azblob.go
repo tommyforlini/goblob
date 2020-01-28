@@ -16,7 +16,6 @@ package blobstore
 
 import (
 	"context"
-	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -181,13 +180,15 @@ func (s *azblobStore) Write(dst *Blob, src io.Reader) error {
 	}
 
 	// Azure blobs dont recalculate checksums IF they were uploaded in blocks.
-	// Calculate manually after uploading, to help for performance on subsequent uploads
-	hash := md5.New()
-	io.Copy(hash, src)
-	_, err = blobURL.SetHTTPHeaders(context.Background(), azblob.BlobHTTPHeaders{ContentMD5: hash.Sum(nil)[:16]}, azblob.BlobAccessConditions{})
+	// Patch manually after uploading, to help for performance on subsequent uploads
+	decodedChecksum, _ := hex.DecodeString(dst.Checksum)
+
+	response, err := blobURL.SetHTTPHeaders(context.Background(), azblob.BlobHTTPHeaders{ContentMD5: decodedChecksum}, azblob.BlobAccessConditions{})
 	if err != nil {
 		return err
 	}
+	// Close response
+	response.Response().Body.Close()
 
 	return nil
 }
